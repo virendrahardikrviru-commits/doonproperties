@@ -15,15 +15,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Import routes
-import authRoutes from './routes/auth.js';
-import listingsRoutes from './routes/listings.js';
-import inquiriesRoutes from './routes/inquiries.js';
-import chatsRoutes from './routes/chats.js';
-import reportsRoutes from './routes/reports.js';
-import uploadRoutes from './routes/upload.js';
+import authRoutes from './backend/routes/auth.js';
+import listingsRoutes from './backend/routes/listings.js';
+import inquiriesRoutes from './backend/routes/inquiries.js';
+import chatsRoutes from './backend/routes/chats.js';
+import reportsRoutes from './backend/routes/reports.js';
+import uploadRoutes from './backend/routes/upload.js';
 
 // Import database
-import { runMigrations } from './migrations/migrate.js';
+import { runMigrations } from './backend/migrations/migrate.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
