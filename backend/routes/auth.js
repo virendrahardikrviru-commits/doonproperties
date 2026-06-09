@@ -10,9 +10,7 @@ console.log('🔥 auth.js is being loaded!');
 
 const router = express.Router();
 
-console.log('✅ Router created, defining routes...');
-
-// Email transporter configuration for Hostinger/Titan
+// Email transporter configuration
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.titan.email',
   port: parseInt(process.env.SMTP_PORT) || 465,
@@ -263,7 +261,14 @@ router.get('/verify-email', async (req, res) => {
   }
 });
 
-console.log('✅ auth.js routes defined, exporting router...');
+console.log('✅ auth.js - all routes defined');
+console.log('📋 Routes registered:');
+console.log('  - POST /register');
+console.log('  - POST /login');
+console.log('  - POST /google');
+console.log('  - PUT /update-phone');
+console.log('  - GET /verify-email');
+console.log('🔥 auth.js loaded successfully');
 
 export default router;
 
