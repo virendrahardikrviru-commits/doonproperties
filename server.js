@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 // Load environment variables
 dotenv.config();
@@ -13,7 +14,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ Simple static imports - no dynamic crap
+// ✅ Simple static imports
 import authRoutes from './backend/routes/auth.js';
 import listingsRoutes from './backend/routes/listings.js';
 import inquiriesRoutes from './backend/routes/inquiries.js';
@@ -47,6 +48,7 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.log('CORS - Allowing origin:', origin);
       callback(null, true);
     }
   },
@@ -62,6 +64,39 @@ app.use(compression());
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
+
+// 🔍 DEBUG ROUTE - Check what files exist
+app.get('/debug-files', (req, res) => {
+  const checkDir = (dirPath) => {
+    try {
+      if (fs.existsSync(dirPath)) {
+        return fs.readdirSync(dirPath);
+      }
+      return 'Directory not found';
+    } catch (e) {
+      return `Error: ${e.message}`;
+    }
+  };
+  
+  res.json({
+    currentDir: __dirname,
+    backendExists: fs.existsSync('./backend'),
+    backendRoutesExists: fs.existsSync('./backend/routes'),
+    authJsExists: fs.existsSync('./backend/routes/auth.js'),
+    backendFiles: checkDir('./backend'),
+    routesFiles: checkDir('./backend/routes'),
+  });
+});
+
+// ✅ TEST ROUTE - Directly mounted to verify routing works
+app.post('/api/auth/google', (req, res) => {
+  console.log('✅ TEST route /api/auth/google was hit!');
+  res.json({ 
+    success: true, 
+    message: 'Test route working - auth.js not loaded yet',
+    receivedBody: req.body 
+  });
+});
 
 // ✅ Routes - directly mounted
 app.use('/api/auth', authRoutes);
@@ -97,10 +132,12 @@ app.get('/', (req, res) => {
   });
 });
 
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Endpoint not found' });
 });
 
+// Error handler
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(err.status || 500).json({
@@ -122,4 +159,5 @@ const startServer = async () => {
 };
 
 startServer();
+
 export default app;
