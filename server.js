@@ -14,7 +14,10 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+console.log('🚀 Starting server.js...');
+
 // ✅ Simple static imports
+console.log('📦 Importing routes...');
 import authRoutes from './backend/routes/auth.js';
 import listingsRoutes from './backend/routes/listings.js';
 import inquiriesRoutes from './backend/routes/inquiries.js';
@@ -22,6 +25,7 @@ import chatsRoutes from './backend/routes/chats.js';
 import reportsRoutes from './backend/routes/reports.js';
 import uploadRoutes from './backend/routes/upload.js';
 import { runMigrations } from './backend/migrations/migrate.js';
+console.log('✅ Routes imported successfully');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -88,23 +92,35 @@ app.get('/debug-files', (req, res) => {
   });
 });
 
-// ✅ TEST ROUTE - Directly mounted to verify routing works
-app.post('/api/auth/google', (req, res) => {
-  console.log('✅ TEST route /api/auth/google was hit!');
+// ✅ FIRST TEST ROUTE - Before any other middleware that might interfere
+app.post('/api/auth/google-test', (req, res) => {
+  console.log('✅ TEST route /api/auth/google-test was hit!', req.body);
   res.json({ 
     success: true, 
-    message: 'Test route working - auth.js not loaded yet',
+    message: 'Test route working!',
+    receivedBody: req.body 
+  });
+});
+
+// ✅ ACTUAL Google route - Directly mounted BEFORE authRoutes
+app.post('/api/auth/google', (req, res) => {
+  console.log('🔥 DIRECT /api/auth/google route hit!', req.body);
+  res.json({ 
+    success: true, 
+    message: 'Direct Google auth route - working!',
     receivedBody: req.body 
   });
 });
 
 // ✅ Routes - directly mounted
+console.log('🔗 Mounting routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingsRoutes);
 app.use('/api/inquiries', inquiriesRoutes);
 app.use('/api/chats', chatsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/upload', uploadRoutes);
+console.log('✅ All routes mounted');
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -134,6 +150,7 @@ app.get('/', (req, res) => {
 
 // 404 handler
 app.use((req, res) => {
+  console.log(`❌ 404 - ${req.method} ${req.path}`);
   res.status(404).json({ success: false, message: 'Endpoint not found' });
 });
 
@@ -148,9 +165,15 @@ app.use((err, req, res, next) => {
 
 const startServer = async () => {
   try {
+    console.log('📊 Running database migrations...');
     await runMigrations();
+    console.log('✅ Migrations complete');
+    
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`🔑 Google auth test: http://localhost:${PORT}/api/auth/google-test`);
+      console.log(`🔑 Google auth direct: http://localhost:${PORT}/api/auth/google`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
