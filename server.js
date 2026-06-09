@@ -6,52 +6,26 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs';
 
 // Load environment variables
 dotenv.config();
 
-// ES Module __dirname workaround
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Import routes (try both paths)
-let authRoutes, listingsRoutes, inquiriesRoutes, chatsRoutes, reportsRoutes, uploadRoutes;
-let runMigrations;
-
-try {
-  // Try backend folder path first (Render deployment structure)
-  authRoutes = (await import('./backend/routes/auth.js')).default;
-  listingsRoutes = (await import('./backend/routes/listings.js')).default;
-  inquiriesRoutes = (await import('./backend/routes/inquiries.js')).default;
-  chatsRoutes = (await import('./backend/routes/chats.js')).default;
-  reportsRoutes = (await import('./backend/routes/reports.js')).default;
-  uploadRoutes = (await import('./backend/routes/upload.js')).default;
-  const migrations = await import('./backend/migrations/migrate.js');
-  runMigrations = migrations.runMigrations;
-  console.log('✅ Loaded routes from ./backend/');
-} catch (err) {
-  console.log('⚠️ Failed to load from ./backend/, trying ./routes/...', err.message);
-  try {
-    // Try routes folder path (alternative structure)
-    authRoutes = (await import('./routes/auth.js')).default;
-    listingsRoutes = (await import('./routes/listings.js')).default;
-    inquiriesRoutes = (await import('./routes/inquiries.js')).default;
-    chatsRoutes = (await import('./routes/chats.js')).default;
-    reportsRoutes = (await import('./routes/reports.js')).default;
-    uploadRoutes = (await import('./routes/upload.js')).default;
-    const migrations = await import('./migrations/migrate.js');
-    runMigrations = migrations.runMigrations;
-    console.log('✅ Loaded routes from ./routes/');
-  } catch (err2) {
-    console.error('❌ Failed to load routes from both paths:', err2.message);
-  }
-}
+// ✅ Simple static imports - no dynamic crap
+import authRoutes from './backend/routes/auth.js';
+import listingsRoutes from './backend/routes/listings.js';
+import inquiriesRoutes from './backend/routes/inquiries.js';
+import chatsRoutes from './backend/routes/chats.js';
+import reportsRoutes from './backend/routes/reports.js';
+import uploadRoutes from './backend/routes/upload.js';
+import { runMigrations } from './backend/migrations/migrate.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Allowed origins for CORS
+// CORS
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
@@ -61,21 +35,18 @@ const allowedOrigins = [
   'https://doonproperties.onrender.com'
 ];
 
-// Security middleware
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: false
 }));
 
-// CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('Blocked origin:', origin);
       callback(null, true);
     }
   },
@@ -84,63 +55,23 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Compression
 app.use(compression());
 
-// Logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// DEBUG ROUTE - Check file structure
-app.get('/debug-files', (req, res) => {
-  const checkDir = (dirPath) => {
-    try {
-      if (fs.existsSync(dirPath)) {
-        return fs.readdirSync(dirPath);
-      }
-      return 'Directory not found';
-    } catch (e) {
-      return `Error: ${e.message}`;
-    }
-  };
-  
-  res.json({
-    currentDir: __dirname,
-    rootFiles: checkDir('.'),
-    backendFiles: checkDir('./backend'),
-    backendRoutesFiles: checkDir('./backend/routes'),
-    routesFiles: checkDir('./routes'),
-    backendConfigFiles: checkDir('./backend/config'),
-    configFiles: checkDir('./config'),
-    hasAuthRoute: fs.existsSync('./backend/routes/auth.js') || fs.existsSync('./routes/auth.js')
-  });
-});
+// ✅ Routes - directly mounted
+app.use('/api/auth', authRoutes);
+app.use('/api/listings', listingsRoutes);
+app.use('/api/inquiries', inquiriesRoutes);
+app.use('/api/chats', chatsRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/upload', uploadRoutes);
 
-// Static files for uploads
-app.use('/uploads', (req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.header('Access-Control-Allow-Methods', 'GET');
-  next();
-}, express.static(path.join(__dirname, 'uploads')));
-
-// API Routes (only if routes loaded successfully)
-if (authRoutes) app.use('/api/auth', authRoutes);
-if (listingsRoutes) app.use('/api/listings', listingsRoutes);
-if (inquiriesRoutes) app.use('/api/inquiries', inquiriesRoutes);
-if (chatsRoutes) app.use('/api/chats', chatsRoutes);
-if (reportsRoutes) app.use('/api/reports', reportsRoutes);
-if (uploadRoutes) app.use('/api/upload', uploadRoutes);
-
-// Health check endpoint
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
@@ -150,7 +81,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Root endpoint
 app.get('/', (req, res) => {
   res.json({
     success: true,
@@ -167,52 +97,23 @@ app.get('/', (req, res) => {
   });
 });
 
-// 404 handler
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Endpoint not found'
-  });
+  res.status(404).json({ success: false, message: 'Endpoint not found' });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    message: err.message || 'Internal server error'
   });
 });
 
-// Start server
 const startServer = async () => {
   try {
-    if (runMigrations) {
-      await runMigrations();
-    } else {
-      console.log('⚠️ Migrations not loaded, skipping...');
-    }
-    
+    await runMigrations();
     app.listen(PORT, () => {
-      console.log(`
-╔════════════════════════════════════════════════════════╗
-║                                                        ║
-║   🏠  Dehradun Estates API Server                     ║
-║                                                        ║
-║   🚀 Server running on port ${PORT}                    ║
-║   🌍 Environment: ${process.env.NODE_ENV || 'development'}                             ║
-║   📅 Started at: ${new Date().toLocaleString()}  ║
-║                                                        ║
-║   API Endpoints:                                       ║
-║   • GET  /api/health          - Health check           ║
-║   • POST /api/auth/google     - Google OAuth           ║
-║   • GET  /api/listings        - Get all listings       ║
-║   • POST /api/inquiries       - Submit inquiry         ║
-║   • GET  /api/chats           - Get user chats         ║
-║                                                        ║
-╚════════════════════════════════════════════════════════╝
-      `);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -221,5 +122,4 @@ const startServer = async () => {
 };
 
 startServer();
-
 export default app;
