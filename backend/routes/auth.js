@@ -4,9 +4,13 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import { query } from '../config/database.js';
-import { authenticate } from '../middleware/auth.js';  // ✅ Add this line
+import { authenticate } from '../middleware/auth.js';
+
+console.log('🔥 auth.js is being loaded!');
 
 const router = express.Router();
+
+console.log('✅ Router created, defining routes...');
 
 // Email transporter configuration for Hostinger/Titan
 const transporter = nodemailer.createTransport({
@@ -24,8 +28,9 @@ const generateVerificationToken = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
-// ========== Email/Password Registration (No Email Verification Required) ==========
+// ========== Email/Password Registration ==========
 router.post('/register', async (req, res) => {
+  console.log('📝 POST /register hit');
   try {
     const { email, password, name, phone } = req.body;
 
@@ -80,6 +85,7 @@ router.post('/register', async (req, res) => {
 
 // ========== Email/Password Login ==========
 router.post('/login', async (req, res) => {
+  console.log('📝 POST /login hit');
   try {
     const { email, password } = req.body;
 
@@ -135,8 +141,14 @@ router.post('/login', async (req, res) => {
 
 // ========== Google OAuth Login ==========
 router.post('/google', async (req, res) => {
+  console.log('📝 POST /google hit!', req.body);
   try {
     const { email, name, googleId, avatarInitial, picture } = req.body;
+
+    if (!email || !name || !googleId) {
+      console.log('❌ Missing required fields:', { email, name, googleId });
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
 
     let result = await query(
       `SELECT id, email, name, auth_provider, phone FROM users WHERE email = $1`,
@@ -145,6 +157,7 @@ router.post('/google', async (req, res) => {
 
     let user;
     if (result.rows.length === 0) {
+      console.log('📝 Creating new user for:', email);
       const insertResult = await query(
         `INSERT INTO users (email, name, google_id, avatar_initial, picture, auth_provider, created_via, email_verified)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -155,6 +168,7 @@ router.post('/google', async (req, res) => {
     } else {
       user = result.rows[0];
       if (!user.google_id) {
+        console.log('📝 Updating existing user with google_id for:', email);
         await query(`UPDATE users SET google_id = $1, picture = $2 WHERE id = $3`, [googleId, picture, user.id]);
       }
     }
@@ -165,6 +179,7 @@ router.post('/google', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    console.log('✅ Google login successful for:', email);
     res.json({
       success: true,
       token,
@@ -180,13 +195,14 @@ router.post('/google', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Google auth error:', error);
+    console.error('❌ Google auth error:', error);
     res.status(500).json({ success: false, message: 'Google authentication failed' });
   }
 });
 
 // ========== Update User Phone Number ==========
 router.put('/update-phone', authenticate, async (req, res) => {
+  console.log('📝 PUT /update-phone hit');
   try {
     const { phone } = req.body;
     const userId = req.user.id;
@@ -207,8 +223,9 @@ router.put('/update-phone', authenticate, async (req, res) => {
   }
 });
 
-// ========== Email Verification Endpoint (Optional - kept for future use) ==========
+// ========== Email Verification Endpoint ==========
 router.get('/verify-email', async (req, res) => {
+  console.log('📝 GET /verify-email hit');
   try {
     const { token } = req.query;
 
@@ -246,4 +263,8 @@ router.get('/verify-email', async (req, res) => {
   }
 });
 
+console.log('✅ auth.js routes defined, exporting router...');
+
 export default router;
+
+console.log('✅ auth.js export complete');
