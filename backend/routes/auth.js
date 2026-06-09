@@ -3,8 +3,8 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
-import { query } from './config/database.js';
-import { authenticate } from './middleware/auth.js';  // ✅ Add this line
+import { query } from '../config/database.js';
+import { authenticate } from '../middleware/auth.js';  // ✅ Add this line
 
 const router = express.Router();
 

@@ -1,7 +1,7 @@
 import express from 'express';
-import { query } from './config/database.js';
-import { authenticate, optionalAuth } from './middleware/auth.js';
-import { sendInquiryNotification } from './config/email.js';
+import { query } from '../config/database.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
+import { sendInquiryNotification } from '../config/email.js';
 
 const router = express.Router();
 
