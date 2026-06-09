@@ -1,8 +1,8 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { upload, handleUploadError } from '../middleware/upload.js';
-import { authenticate } from '../middleware/auth.js';
+import { upload, handleUploadError } from './middleware/upload.js';
+import { authenticate } from './middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
