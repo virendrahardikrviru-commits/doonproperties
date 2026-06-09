@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 // Load environment variables
 dotenv.config();
@@ -14,16 +15,38 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Import routes
-import authRoutes from './backend/routes/auth.js';
-import listingsRoutes from './backend/routes/listings.js';
-import inquiriesRoutes from './backend/routes/inquiries.js';
-import chatsRoutes from './backend/routes/chats.js';
-import reportsRoutes from './backend/routes/reports.js';
-import uploadRoutes from './backend/routes/upload.js';
+// Import routes (try both paths)
+let authRoutes, listingsRoutes, inquiriesRoutes, chatsRoutes, reportsRoutes, uploadRoutes;
+let runMigrations;
 
-// Import database
-import { runMigrations } from './backend/migrations/migrate.js';
+try {
+  // Try backend folder path first (Render deployment structure)
+  authRoutes = (await import('./backend/routes/auth.js')).default;
+  listingsRoutes = (await import('./backend/routes/listings.js')).default;
+  inquiriesRoutes = (await import('./backend/routes/inquiries.js')).default;
+  chatsRoutes = (await import('./backend/routes/chats.js')).default;
+  reportsRoutes = (await import('./backend/routes/reports.js')).default;
+  uploadRoutes = (await import('./backend/routes/upload.js')).default;
+  const migrations = await import('./backend/migrations/migrate.js');
+  runMigrations = migrations.runMigrations;
+  console.log('✅ Loaded routes from ./backend/');
+} catch (err) {
+  console.log('⚠️ Failed to load from ./backend/, trying ./routes/...', err.message);
+  try {
+    // Try routes folder path (alternative structure)
+    authRoutes = (await import('./routes/auth.js')).default;
+    listingsRoutes = (await import('./routes/listings.js')).default;
+    inquiriesRoutes = (await import('./routes/inquiries.js')).default;
+    chatsRoutes = (await import('./routes/chats.js')).default;
+    reportsRoutes = (await import('./routes/reports.js')).default;
+    uploadRoutes = (await import('./routes/upload.js')).default;
+    const migrations = await import('./migrations/migrate.js');
+    runMigrations = migrations.runMigrations;
+    console.log('✅ Loaded routes from ./routes/');
+  } catch (err2) {
+    console.error('❌ Failed to load routes from both paths:', err2.message);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,16 +68,15 @@ app.use(helmet({
   crossOriginResourcePolicy: false
 }));
 
-// CORS configuration - FIXED for production domains
+// CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       console.log('Blocked origin:', origin);
-      callback(null, true); // Still allow but log it
+      callback(null, true);
     }
   },
   credentials: true,
@@ -74,7 +96,32 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Static files for uploads - WITH CORS HEADERS
+// DEBUG ROUTE - Check file structure
+app.get('/debug-files', (req, res) => {
+  const checkDir = (dirPath) => {
+    try {
+      if (fs.existsSync(dirPath)) {
+        return fs.readdirSync(dirPath);
+      }
+      return 'Directory not found';
+    } catch (e) {
+      return `Error: ${e.message}`;
+    }
+  };
+  
+  res.json({
+    currentDir: __dirname,
+    rootFiles: checkDir('.'),
+    backendFiles: checkDir('./backend'),
+    backendRoutesFiles: checkDir('./backend/routes'),
+    routesFiles: checkDir('./routes'),
+    backendConfigFiles: checkDir('./backend/config'),
+    configFiles: checkDir('./config'),
+    hasAuthRoute: fs.existsSync('./backend/routes/auth.js') || fs.existsSync('./routes/auth.js')
+  });
+});
+
+// Static files for uploads
 app.use('/uploads', (req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
@@ -85,13 +132,13 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, 'uploads')));
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/listings', listingsRoutes);
-app.use('/api/inquiries', inquiriesRoutes);
-app.use('/api/chats', chatsRoutes);
-app.use('/api/reports', reportsRoutes);
-app.use('/api/upload', uploadRoutes);
+// API Routes (only if routes loaded successfully)
+if (authRoutes) app.use('/api/auth', authRoutes);
+if (listingsRoutes) app.use('/api/listings', listingsRoutes);
+if (inquiriesRoutes) app.use('/api/inquiries', inquiriesRoutes);
+if (chatsRoutes) app.use('/api/chats', chatsRoutes);
+if (reportsRoutes) app.use('/api/reports', reportsRoutes);
+if (uploadRoutes) app.use('/api/upload', uploadRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -141,8 +188,11 @@ app.use((err, req, res, next) => {
 // Start server
 const startServer = async () => {
   try {
-    // Run database migrations
-    await runMigrations();
+    if (runMigrations) {
+      await runMigrations();
+    } else {
+      console.log('⚠️ Migrations not loaded, skipping...');
+    }
     
     app.listen(PORT, () => {
       console.log(`
